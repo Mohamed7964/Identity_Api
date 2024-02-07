@@ -1,0 +1,23 @@
+step 1 :
+	add empty migration // هنعمل ميجريشن فاضيه ونسميها سيد رول وبعد كده نبدا نكتب فيها الرول الي احنا هنحتجها 
+
+step 2 :
+protected override void Up(MigrationBuilder migrationBuilder)
+{
+	migrationBuilder.InsertData(
+		table : "AspNetRole", //هنا هنكتب اسم الجدول الي هنحط فيه الداتا في الداتا بيز 
+		columns : new[] {"Id","Name","NormalizedName","ConcurrencyStamp"},
+		values : new object[] {Guid.NewGuid().Tostring(),"User","user".ToUpper(),Guid.NewGuid().Tostring()}
+		);
+
+	migrationBuilder.InsertData(
+		table : "AspNetRole", //هنا هنكتب اسم الجدول الي هنحط فيه الداتا في الداتا بيز 
+		columns : new[] {"Id","Name","NormalizedName","ConcurrencyStamp"},
+		values : new object[] {Guid.NewGuid().Tostring(),"Admin","Admin".ToUpper(),Guid.NewGuid().Tostring()}
+		);
+}
+
+protected override void Down(MigrationBuilder migrationBuilder)
+{
+	migrationBuilder.sql("DELETE FROM [AspNetRole]");
+}

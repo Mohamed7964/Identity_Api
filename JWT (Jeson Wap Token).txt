@@ -1,0 +1,35 @@
+Step 1:
+	Need packages :
+	Install-Package Microsoft.AspNetCore.Authentication.JwtBearer
+	Install-Package Microsoft.AspNetCore.Identity.EntityFrameworkCore
+	Install-Package Microsoft.EntityFrameworkCore
+	Install-Package Microsoft.EntityFrameworkCore.Design
+	Install-Package Microsoft.EntityFrameworkCore.SqlServer
+	Install-Package Microsoft.EntityFrameworkCore.Tools
+	Install-Package Microsoft.VisualStudio.Web.CodeGeneration.Design
+	Install-Package System.IdentityModel.Tokens.Jwt
+
+Step 2:
+	Create JWT Key In appsettings file
+	"JWT":{ "Key":"بجنريت الكي من موقع https://8gwifi.org/jwsgen.jsp وبحدد  الالجورزم الي هوه HS256 وبعد كده اجنريت الكي ",
+		"Issuer": "SecureApi",
+		"Audience": "SecureApiUser",
+		"DurationInDay": عدد الايام الي التوكن هينتهي بعدها او هيبقي اكسبير }
+
+Step 3:
+	Add Helper folder in solution or project 
+
+Step 4:
+	Create JWT class in helper to map on appsetting  
+	public class JWT
+	{
+	   Public string Key { get; set; }
+	   Public string Issuer { get; set; }
+	   Public string Audience { get; set; }
+	   Public string DurationInDay { get; set; }
+	}
+
+Step 5:
+	In program File add services to map between appsetting and jwt class
+	services.configure<JWT>(Configration.GetSection("JWT")); // هتتغير في فيجول استوديو 2022
+	

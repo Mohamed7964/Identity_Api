@@ -1,0 +1,49 @@
+Step 1:
+	Data project:
+	Microsoft.AspNetCore.Identity.EntityFrameworkCore
+	Microsoft.EntityFrameworkCore
+	Microsoft.EntityFrameworkCore.Relational
+	Microsoft.EntityFrameworkCore.SqlServer
+	Microsoft.EntityFrameworkCore.Tools
+
+	API project
+	Microsoft.EntityFrameworkCore
+	Microsoft.EntityFrameworkCore.Design
+	Microsoft.AspNetCore.Identity.UI
+	
+Step 2:
+	create user class : IdentityUser<int>
+
+Step 3:
+	Create dbcontext : IdentityDbContext
+	public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<int>, int, IdentityUserClaim<int>, IdentityUserRole<int>, IdentityUserLogin<int>, IdentityRoleClaim<int>, IdentityUserToken<int>>
+	{
+		public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+		{
+		}
+
+		public override DbSet<User> Users => Set<User>();
+
+	
+		protected override void OnModelCreating(ModelBuilder builder)
+		{
+			base.OnModelCreating(builder);
+
+			//Change Identity Schema and Table Names
+			builder.Entity<User>().ToTable("Users");
+			builder.Entity<IdentityRole<int>>().ToTable("Roles");
+			builder.Entity<IdentityUserRole<int>>().ToTable("UserRole");
+			builder.Entity<IdentityUserClaim<int>>().ToTable("UserClaims");
+			builder.Entity<IdentityUserLogin<int>>().ToTable("UserLogins");
+			builder.Entity<IdentityRoleClaim<int>> ().ToTable("RoleClaims");
+			builder.Entity<IdentityUserToken<int>>().ToTable("UserTokens");
+		}
+	}
+
+step 4:
+	add connection string in appsettings file
+		"ConnectionStrings": {
+  			"DefaultConnection": "server=.; database=Identity_Api; trusted_connection=true; MultipleActiveResultSets=true;"
+			}
+	add DI in program file
+	services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(config.GetConnectionString("ApplicationDbContextConnection")));

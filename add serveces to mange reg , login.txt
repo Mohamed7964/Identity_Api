@@ -1,0 +1,298 @@
+step1 :
+	create services folder in solution 
+	create IAuthServece interface in services folder 
+	create AuthServece class in services folder and inhert from IAuthServece 
+
+Step 2 :
+	add service in programe file  ==>  services.AddScoped<IAuthServece,AuthServece>();
+	need to add => app.UseAuthenticaion(); <= with middleware in program file // بنضفها قبل الاسوريزيشن في الميدل وير 
+
+
+Step 3 : 
+	Add Configration with JWT in program File 
+	services.AddAuthentication(options => {
+	options.DefaultAuthentcateScheme = JwtBearerDefaults.AuthenticationScheme;
+	options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}) .AddJwtBearer( o => 
+{
+	o.RequireHttpsMetedata =false;
+	o.saveToken =false;
+	o.TokenValidationParameters = new TokenValidationParameters 
+	{
+		ValidateIssuerSigningKey = true,
+		ValidateIssuer = true,
+		ValidateAudience = true,
+		ValidateLifetime = true,
+		ValidIssuer = Configuration["JWT:Issuer"],
+		ValidAudience = Configuration["JWT:Audience"],
+		IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configration["JWT:Key"]))
+	};
+});
+
+
+////////////////////////////////////Firet Endpoint Reg////////////////////////////////////
+
+Step 4 :
+	Create error message is returned to the user when an error in the registration process 
+	1: in Model file Create AuthModel Class
+		Public class AuthModel
+		{
+			public string Message {get; set;}
+			public bool IsAuthenticated {get; set;}
+			public string username {get; set;}
+			public string Email {get; set;}
+			public List<string> Roles {get; set;}
+			public string Token {get; set;}
+			public DateTime ExpiresOn {get; set;}
+		}
+
+	2:in Model file Create RegisterModel Class
+		public class RegisterModel
+		{
+			[Required] //ضيف الداتا انوتيشن الي انت محتاجها في الفاليديشن علي كلو 
+			public string firstname {get; set;}
+			[Required]
+			public string Lastname {get; set;}
+			[Required]
+			public string Username {get; set;}
+			[Required]
+			public string Email {get; set;}
+			[Required]
+			public string Password {get; set;} 
+
+	3: Goto IAuthServece interface and Add
+		Task<AuthModel> RegisterAsync(RegisterModel Model);
+	   goto AuthServece and implement the interface 
+		private readonly UserManager<ApplicattioUser> _userManager
+		
+		public AuthServece (UserManager<ApplicattioUser> userManger)
+		{
+			_userManager = userManager
+		}
+
+		public async Task<AuthModel> RegisterAsync(RegisterModel model)
+		{	//check email is registered in database 
+			if(await _userManager.findByEmailAsync(model Email) is not null)
+			    return new AuthModel { Message = "Email is already registered!"};
+			
+			//check Username is registered in database
+			if(await _userManager.findByEmailAsync(model Username) is not null)
+			    return new AuthModel { Message = "Username is already registered!"};
+		
+			// next step if email or username not register then register user in database 
+			var user = new ApplicationUser
+			{
+			    UserName = Model.Username,
+			    Email = Model.Email,
+			    FirstName = Model.FirstName,
+			    LastName = Model.Lastname
+			};
+			
+			var result = await _userManager.CreateAsync(user,model.Password);
+			if(!result.Succeeded)
+			{
+			   var errors = string.Empty;
+			   
+			   Foreach (var error in resault.Errors)
+				{
+					errors += $"{error.Description},"
+				}
+			   return new AuthModel { Message = errors};
+			}
+			await _userManager.AddToRoleAsync(user,"user");
+			var jwtSecurityToken = await CreateJwtToken(User); // بستدعي الفانكشن الي تحت الي بكريت بيها التوكن يعني بكل بساطه لازم اكتب الفانكشن الاول وبعد كده استدعيها هنا 
+
+			return new AuthModel
+			{
+			    Email = User.Email,
+			    ExpiresOn = jwtSecurityToken.ValidTo,
+			    IsAuthenticated = true,
+			    Roles = new List<string> { "User" },
+			    Token = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken),
+			    UserName = User.UserName
+			};
+		}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 5:
+	Function to use create Token Secure =>
+
+private async Task<JwtSecurityToken> CreateJwtToken(user users)
+ {
+     ////All data in token
+     var userClaims = await _userManager.GetClaimsAsync(users);
+     var roles = await _userManager.GetRolesAsync(users);
+     var roleClaims = new List<Claim>();
+
+     foreach (var role in roles)
+         roleClaims.Add(new Claim("roles", role));
+
+     var claims = new[]
+     {   ////Sume Data in token
+         new Claim(JwtRegisteredClaimNames.Sub, users.UserName),
+         new Claim(JwtRegisteredClaimNames.Name, users.FirstName +" "+ users.LastName),
+         new Claim(JwtRegisteredClaimNames.Email, users.Email),
+         new Claim("uid",users.Id.ToString())
+     }
+     .Union(userClaims)
+     .Union(roleClaims);
+
+     var symmetricSecurityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Key)); //create Key by use key in app setting
+     var signingCredentials = new SigningCredentials(symmetricSecurityKey, SecurityAlgorithms.HmacSha256);
+
+     var jwtSecurityToken = new JwtSecurityToken(
+         issuer: _jwt.Issuer,
+         audience: _jwt.Audience,
+     claims: claims,
+         expires: DateTime.Now.AddDays(_jwt.DurationInDay), //// هيروح علي ملف الابسيتينج ويجيب عدد الايام الي انا كنت كاتبهملو في الاكسيبير ويضفهم علي انهرضه
+         signingCredentials: signingCredentials);
+
+     return jwtSecurityToken;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 6: 
+	Add end point in controler to register
+	create New Authcontroller in controller file and add register endpoint
+
+public class AuthContorller : ControllerBase
+{
+    private readonly IAuthServece _authServece;
+
+    public AuthContorller(IAuthServece authServece)
+    {
+        _authServece = authServece;
+    }
+    [HttpPost("register")]
+    public async Task<IActionResult> RegisterAsync([FromBody]RegisterModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+        var resalt =await _authServece.RegisterAsync(model);
+        if (!resalt.IsAuthenticated)
+        {
+            return BadRequest(resalt.Message);
+        }
+        return Ok(resalt);// ممكن احدد الداتا الي انا عاوزها تتبعت بس بدل مبعتها كلها عن طريق الانونيماس اوبجكت ===> (new{token = result.tokeen , ewpireson = result.ExpiresOn}) // هنا انا حددتلو انه هيرجع التوكن والاكسبير ديت بس 
+    }
+}
+
+///////////////////////////////////////////////////////Add Login GetToken EndPoint/////////////////////////////////////////////////
+
+Step 7:
+	goto IAuthService and add ==> Task<AuthModel> GrtTokenAsync(LoginTokenRequestModel model);
+	goto Models and create LoginTokenRequestModel class
+
+		public class LoginTokenRequestModel 
+		{
+			[Required]
+			public string Email {get; set; }
+			[Required]
+			public string Password { get; set; }
+		}
+
+	goto AuthService and implment LoginTokenRequestModel method under RegisterModel
+ 
+		public async Task<AuthModel> GetTokenAsync(LoginTokenRequestModel model)
+		{
+		    var authModel = new AuthModel();
+
+		    var user = await _userManager.FindByEmailAsync(model.Email); /// or var user = _userManager.Users.FirstOrDefault(p => p.PhoneNumber == model.PhoneNumber);///دي بستخدمها لو عاوز احدد حاجه تانيه غير الايميل 
+
+		    if (user is null || !await _userManager.CheckPasswordAsync(user, model.Password) || user.PhoneNumber != model.PhoneNumber)
+    		    {
+		        authModel.Message = "Email or Password is incorrect!";
+		        return authModel;
+		    }
+
+		    var jwtSecurityToken = await CreateJwtToken(user);
+		    var rolesList = await _userManager.GetRolesAsync(user);
+
+		    authModel.IsAuthenticated = true;
+		    authModel.Token = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken);
+		    authModel.Email = user.Email;
+		    authModel.UserName = user.UserName;
+		    authModel.PhoneNumber = user.PhoneNumber;
+		    authModel.ExpiresOn = jwtSecurityToken.ValidTo;
+		    authModel.Roles = rolesList.ToList();
+
+		    return authModel;
+		}
+
+	add Login endpoint in Auth controler in controler file 
+
+	[HttpPost("Login")]
+	public async Task<IActionResult> LoginTokenRequestModel([FromBody] LoginTokenRequestModel model)
+	{
+	    if (!ModelState.IsValid)
+	    {
+	        return BadRequest(ModelState);
+	    }
+	    var resalt = await _authServece.GrtTokenAsync(model);
+	    if (!resalt.IsAuthenticated)
+	    {
+	        return BadRequest(resalt.Message);
+	    }
+	    return Ok(resalt);
+	}
+
+////////////////////////////////////////////////////////Add User to role///////////////////////////////////////////////////////////////
+
+Step 8:
+
+	goto IAuthService and add ==> Task<string> AddRoleAsync(RoleModel model);
+	goto Models and create AddRoleModel class
+	
+	public class RoleModel
+	{
+		[Required]
+		public string UserId {get; set; }
+		[Required]
+		public string Role {get; set; }
+	}
+
+	goto AuthService and implment RoleModel method under LoginTokenRequestModel
+
+	 public async Task<string> AddRoleModel(RoleModel model)
+	 {
+	     var user = await _userManager.FindByIdAsync(model.UserId);
+	
+	     if (user is null || !await _roleManager.RoleExistsAsync(model.Role))
+	         return "Invalid user ID or Role";
+
+	     if (await _userManager.IsInRoleAsync(user, model.Role))
+	         return "User already assigned to this role";
+
+	     var result = await _userManager.AddToRoleAsync(user, model.Role);
+
+	     return result.Succeeded ? string.Empty : "Sonething went wrong";
+	 }
+
+	add Role endpoint in Auth controler in controler file 
+
+	[HttpPost("Role")]
+	public async Task<IActionResult> RoleModel([FromBody] RoleModel model)
+	{
+	    if (!ModelState.IsValid)
+	    {
+	        return BadRequest(ModelState);
+	    }
+	    var resalt = await _authServece.AddRoleModel(model);
+	    if (resalt == "")
+	    {
+	        return Ok(model);
+	    }
+	    return BadRequest(resalt);
+	}
+
+////////////////////////////////////////////////////////Role Secuor///////////////////////////////////////////////////
+
+add [Authorize(Role = "Admin")] in role mithod in controler
+
+test with token only 
+only role admin can be access
+
+بكل بساطه انت بتضيف الاسورايز فوق اي ميسود انت عاوزها تبقي سيكيور وتحدد انهي رول هيه الي ممكن تاكسس عليها فقط زي الطريقه الي فوق 
